@@ -96,3 +96,4 @@ Every market claim about BMNR gets evaluated through:
 ## License
 
 MIT - Build, analyze, learn.
+# Test
