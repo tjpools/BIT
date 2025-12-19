@@ -8,6 +8,19 @@ import json
 import os
 from datetime import datetime
 import urllib.request
+import logging
+
+# Configure logging
+os.makedirs('logs', exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/prediction_tracker.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 PREDICTIONS_FILE = "data/predictions.json"
 
@@ -26,6 +39,7 @@ def save_predictions(predictions):
 
 def get_current_price():
     """Fetch current BMNR price"""
+    logger.info("Fetching current BMNR price")
     try:
         url = "https://query1.finance.yahoo.com/v8/finance/chart/BMNR?interval=1d&range=1d"
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -34,12 +48,16 @@ def get_current_price():
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode())
             result = data['chart']['result'][0]
-            return result['meta']['regularMarketPrice']
-    except:
+            price = result['meta']['regularMarketPrice']
+            logger.info(f"Current price: ${price:.2f}")
+            return price
+    except Exception as e:
+        logger.error(f"Error fetching current price: {e}", exc_info=True)
         return None
 
 def add_prediction(statement, target_price, timeframe, source="Manual", notes=""):
     """Add a new prediction"""
+    logger.info(f"Adding new prediction: target=${target_price}, timeframe={timeframe}")
     predictions = load_predictions()
     
     prediction = {
@@ -59,6 +77,7 @@ def add_prediction(statement, target_price, timeframe, source="Manual", notes=""
     predictions.append(prediction)
     save_predictions(predictions)
     
+    logger.info(f"Prediction #{prediction['id']} added successfully")
     print(f"✓ Prediction #{prediction['id']} added")
     return prediction
 

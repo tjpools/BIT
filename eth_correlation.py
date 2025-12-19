@@ -8,9 +8,24 @@ import json
 import urllib.request
 from datetime import datetime, timedelta
 import math
+import logging
+import os
+
+# Configure logging
+os.makedirs('logs', exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/eth_correlation.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 def fetch_crypto_data(symbol, days=30):
     """Fetch cryptocurrency data from Yahoo Finance"""
+    logger.info(f"Fetching {symbol} data for {days} days")
     now = int(datetime.now().timestamp())
     past = int((datetime.now() - timedelta(days=days)).timestamp())
     
@@ -36,8 +51,10 @@ def fetch_crypto_data(symbol, days=30):
                         'close': quotes['close'][i]
                     })
             
+            logger.info(f"Successfully fetched {len(data_points)} data points for {symbol}")
             return data_points
     except Exception as e:
+        logger.error(f"Error fetching {symbol}: {e}", exc_info=True)
         print(f"Error fetching {symbol}: {e}")
         return []
 
@@ -72,6 +89,10 @@ def calculate_correlation(returns1, returns2):
     return numerator / denominator
 
 def main():
+    logger.info("=" * 70)
+    logger.info("Starting ETH-BMNR Correlation Analysis")
+    logger.info("=" * 70)
+    
     print("=" * 70)
     print("ETH-BMNR Correlation Analysis")
     print("Testing the claim: 'ETH would get this going'")
