@@ -248,7 +248,7 @@ def generate_html(data, stats):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' https://query1.finance.yahoo.com https://query2.finance.yahoo.com; img-src 'self' data:; font-src 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://query1.finance.yahoo.com https://query2.finance.yahoo.com; img-src 'self' data:; font-src 'self';">
     <title>BitMine (BMNR) Tracker</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
