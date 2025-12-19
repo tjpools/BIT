@@ -16,19 +16,24 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
+    timeout-minutes: 15  # Prevent runaway jobs
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      with:
+        persist-credentials: false  # Security: Don't persist credentials
     
     - name: Setup Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
       with:
-        python-version: '3.11'
+        python-version: '3.11.7'  # Exact version pinning
+        cache: 'pip'  # Enable dependency caching
     
     - name: Run tracker update
       run: |
         python3 fetch_and_generate.py
+      timeout-minutes: 10  # Timeout for this specific step
     
     - name: Commit and push if changed
       run: |
@@ -36,11 +41,13 @@ jobs:
         git config --local user.name "github-actions[bot]"
         git add -A
         git diff --quiet && git diff --staged --quiet || (git commit -m "Update BMNR tracker data [$(date)]" && git push)
+      timeout-minutes: 5
     
     - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v4
+      uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e  # v4.0.0
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./docs
         publish_branch: gh-pages
         force_orphan: true
+      timeout-minutes: 5

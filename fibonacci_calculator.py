@@ -7,9 +7,24 @@ Tests predictions like "$53.63 at the 618 Fibonacci level"
 import json
 import urllib.request
 from datetime import datetime, timedelta
+import logging
+import os
+
+# Configure logging
+os.makedirs('logs', exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/fibonacci_calculator.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 def fetch_stock_data(symbol, days=90):
     """Fetch stock data"""
+    logger.info(f"Fetching {symbol} data for {days} days")
     now = int(datetime.now().timestamp())
     past = int((datetime.now() - timedelta(days=days)).timestamp())
     
@@ -37,8 +52,10 @@ def fetch_stock_data(symbol, days=90):
                         'close': quotes['close'][i]
                     })
             
+            logger.info(f"Successfully fetched {len(data_points)} data points for {symbol}")
             return data_points
     except Exception as e:
+        logger.error(f"Error fetching {symbol}: {e}", exc_info=True)
         print(f"Error fetching {symbol}: {e}")
         return []
 
@@ -117,6 +134,10 @@ def analyze_claim(target_price, current_price, fib_levels):
     return closest_level, closest_diff
 
 def main():
+    logger.info("=" * 70)
+    logger.info("Starting Fibonacci Retracement Calculator")
+    logger.info("=" * 70)
+    
     print("=" * 70)
     print("Fibonacci Retracement Calculator")
     print("Testing claim: '$53.63 at the 618 Fibonacci level'")
