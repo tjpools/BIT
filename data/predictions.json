@@ -1,0 +1,15 @@
+[
+  {
+    "id": 1,
+    "timestamp": "2025-12-19T11:12:23.908627",
+    "statement": "Next price target is $53.63 at the 618 Fibonacci level",
+    "target_price": 53.63,
+    "initial_price": 30.975,
+    "timeframe": "2-4 weeks",
+    "source": "Manual",
+    "notes": "",
+    "status": "active",
+    "result": null,
+    "accuracy_score": null
+  }
+]

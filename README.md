@@ -35,26 +35,33 @@ BitMineImmersion/
 
 ## Setup
 
-### 1. Install Julia Dependencies
+### Quick Start (Python)
 
 ```bash
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
+# Fetch data and generate tracker
+python3 fetch_and_generate.py
+
+# Run ETH correlation analysis
+python3 eth_correlation.py
+
+# Calculate Fibonacci levels
+python3 fibonacci_calculator.py
+
+# Track predictions
+python3 prediction_tracker.py
 ```
 
-### 2. Run Locally
+### Julia Version (Optional)
+
+The project includes Julia implementations, but Python scripts work without dependencies.
 
 ```bash
-julia --project=. main.jl
+julia --project=. main.jl  # Requires HTTP, JSON3, DataFrames, CSV
 ```
 
-This will:
-- Fetch BMNR data from Yahoo Finance
-- Save to `data/bmnr_data.csv`
-- Generate `docs/index.html` and `docs/price_chart.png`
+### View Tracker
 
-### 3. View Locally
-
-Open `docs/index.html` in your browser.
+Open `docs/index.html` in your browser to see the live tracker.
 
 ### 4. Deploy to GitHub Pages
 
@@ -63,23 +70,42 @@ Open `docs/index.html` in your browser.
 3. Set source to "GitHub Actions"
 4. The workflow will auto-deploy on push and hourly thereafter
 
-## Why Julia?
+## Why Python + Julia?
 
-- **Numerical computing strength**: Statistical analysis, volatility calculations
-- **Plotting ecosystem**: Beautiful charts with Plots.jl
-- **Fast enough**: Not assembly, but respects performance
-- **Data science stack**: DataFrames, CSV, HTTP libraries
+**Python** (Primary):
+- **Zero dependencies**: Works with just stdlib for core functionality
+- **Universal**: Available on all systems
+- **Rapid prototyping**: Quick iteration on analysis tools
+- **Battle-tested**: Mature ecosystem for data work
+
+**Julia** (Optional):
+- **Numerical computing**: When performance matters
+- **Type system**: More rigorous for complex calculations
+- **REPL-driven**: Interactive exploration
 - **Toy universe friendly**: Easy to experiment and extend
 
-## Extending the System
+## Analysis Tools
 
-This is a **toy universe** for market analysis. Extensions:
+This is a **toy universe** for market analysis. Tools implemented:
 
-1. **ETH correlation analysis** (test the "ETH would get this going" claim)
-2. **Fibonacci level calculator** (measure actual vs predicted)
-3. **Pattern detection** (quantify "symmetric movement" claims)
-4. **Prediction tracking** (log external predictions, measure accuracy)
-5. **Statistical hypothesis testing** (rigorous claim evaluation)
+1. ✅ **ETH correlation analysis** - Test "ETH would get this going" claims
+   - Pearson correlation coefficient
+   - R² variance explanation
+   - Statistical interpretation
+   
+2. ✅ **Fibonacci level calculator** - Validate Fibonacci predictions
+   - Multiple swing scenarios
+   - Retracement and extension levels
+   - Reverse engineering of claims
+   
+3. ✅ **Prediction tracker** - Log and measure prediction accuracy
+   - Track multiple predictions
+   - Progress monitoring
+   - Accuracy scoring
+
+4. 🔲 **Pattern detection** (quantify "symmetric movement" claims)
+5. 🔲 **Statistical hypothesis testing** (rigorous claim evaluation)
+6. 🔲 **Sentiment analysis** (correlate social signals with price)
 
 ## The Filter
 
