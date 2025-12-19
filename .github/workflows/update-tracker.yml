@@ -8,26 +8,27 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 jobs:
   update:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
-    - name: Setup Julia
-      uses: julia-actions/setup-julia@v1
+    - name: Setup Python
+      uses: actions/setup-python@v5
       with:
-        version: '1.9'
-    
-    - name: Install dependencies
-      run: |
-        julia --project=. -e 'using Pkg; Pkg.instantiate()'
+        python-version: '3.11'
     
     - name: Run tracker update
       run: |
-        julia --project=. main.jl
+        python3 fetch_and_generate.py
     
     - name: Commit and push if changed
       run: |
@@ -37,8 +38,9 @@ jobs:
         git diff --quiet && git diff --staged --quiet || (git commit -m "Update BMNR tracker data [$(date)]" && git push)
     
     - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
+      uses: peaceiris/actions-gh-pages@v4
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./docs
         publish_branch: gh-pages
+        force_orphan: true
