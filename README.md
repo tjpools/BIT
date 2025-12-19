@@ -33,6 +33,26 @@ BitMineImmersion/
 - **Clean visualization**: Julia Plots for price history
 - **GitHub Pages deployment**: Static site at `username.github.io/BitMineImmersion`
 
+## 🔒 Security Features
+
+This project implements enterprise-grade security practices:
+
+1. **Rate Limiting & Retry Logic** - Exponential backoff for API calls
+2. **Data Validation** - Comprehensive validation of all stock data
+3. **Error Logging** - Structured logging with timestamps and stack traces
+4. **Workflow Security** - SHA-pinned actions and exact version pinning
+5. **Content Security Policy** - XSS protection for the web dashboard
+
+See [SECURITY_FEATURES.md](SECURITY_FEATURES.md) for detailed documentation.
+
+**Log Files:**
+- `logs/fetch_and_generate.log` - Main tracker operations
+- `logs/eth_correlation.log` - Correlation analysis
+- `logs/fibonacci_calculator.log` - Fibonacci calculations
+- `logs/prediction_tracker.log` - Prediction tracking
+
+All logs include timestamps, log levels (INFO/WARNING/ERROR), and full stack traces for debugging.
+
 ## Setup
 
 ### Quick Start (Python)
