@@ -1,0 +1,3 @@
+ERROR: LoadError: ArgumentError: Package HTTP not found in current path.
+- Run `import Pkg; Pkg.add("HTTP")` to install the HTTP package.
+in expression starting at /home/tjpools/BitMineImmersion/run.jl:6

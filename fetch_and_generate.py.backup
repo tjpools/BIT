@@ -9,12 +9,6 @@ import urllib.request
 from datetime import datetime, timedelta
 import os
 import math
-from position_tracker import (
-    load_position, 
-    calculate_position_status, 
-    generate_position_html_section,
-    get_position_css
-)
 
 def fetch_yahoo_finance(symbol, days=30):
     """Fetch stock data from Yahoo Finance"""
@@ -96,17 +90,6 @@ def format_volume(vol):
 def generate_html(data, stats):
     """Generate HTML page"""
     os.makedirs('docs', exist_ok=True)
-    
-    # Load active position if exists
-    position = load_position()
-    position_html = ""
-    position_css = ""
-    
-    if position:
-        current_price = stats['current_price']
-        status = calculate_position_status(position, current_price)
-        position_html = generate_position_html_section(position, status)
-        position_css = get_position_css()
     
     # Generate simple ASCII chart for now (can add matplotlib later)
     chart_placeholder = "📊 Chart generation with matplotlib coming next..."
@@ -203,7 +186,6 @@ def generate_html(data, stats):
             color: white;
             font-size: 0.9em;
         }}
-        {position_css}
     </style>
 </head>
 <body>
@@ -241,8 +223,6 @@ def generate_html(data, stats):
                 <div class="stat-value">{stats['volatility']}%</div>
             </div>
         </div>
-        
-        {position_html}
         
         <div class="chart-container">
             <h2>Price History (30 Days)</h2>
