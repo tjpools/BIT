@@ -24,7 +24,8 @@ def calculate_position_status(position, current_price):
     """Calculate all position metrics"""
     entry_price = position["entry_price"]
     shares = position["shares"]
-    entry_value = position["entry_value"]
+    cash = position["cash"]
+    entry_value = shares * entry_price
     current_value = shares * current_price
     
     # P&L calculation (short: profit when price falls)
@@ -33,18 +34,18 @@ def calculate_position_status(position, current_price):
     pnl_percent = (price_diff / entry_price) * 100
     
     # Time-based fees
-    entry_dt = datetime.fromisoformat(position["entry_time"])
+    entry_dt = datetime.fromisoformat(position["entry_date"])
     now_dt = datetime.now()
     days_elapsed = (now_dt - entry_dt).total_seconds() / 86400
     
-    daily_fee_rate = position["borrow_fee_annual"] / 365
+    daily_fee_rate = position["borrow_rate"] / 365
     borrow_fees = entry_value * daily_fee_rate * days_elapsed
     
-    total_fees = position["commission_paid"] + borrow_fees
+    total_fees = position["open_commission"] + borrow_fees
     net_pnl = unrealized_pnl - total_fees
     
     # Margin calculation
-    equity = position["net_capital"] + unrealized_pnl - borrow_fees
+    equity = cash + unrealized_pnl - borrow_fees
     margin_level = equity / current_value if current_value > 0 else 0
     
     return {
@@ -57,20 +58,22 @@ def calculate_position_status(position, current_price):
         "net_pnl": net_pnl,
         "equity": equity,
         "margin_level": margin_level,
-        "days_elapsed": days_elapsed
+        "days_elapsed": days_elapsed,
+        "maintenance_margin": 1.25,
+        "liquidation_margin": 1.10
     }
 
 def generate_position_html_section(position, status):
     """Generate HTML section for position display"""
     
     # Determine status indicators
-    if status["margin_level"] < position["liquidation_margin"]:
+    if status["margin_level"] < status["liquidation_margin"]:
         margin_status = "💥 LIQUIDATION IMMINENT"
         margin_class = "liquidation"
-    elif status["margin_level"] < position["maintenance_margin"]:
+    elif status["margin_level"] < status["maintenance_margin"]:
         margin_status = "🚨 MARGIN CALL"
         margin_class = "margin-call"
-    elif status["margin_level"] < position["maintenance_margin"] * 1.1:
+    elif status["margin_level"] < status["maintenance_margin"] * 1.1:
         margin_status = "⚠️ WARNING"
         margin_class = "warning"
     else:
@@ -118,8 +121,8 @@ def generate_position_html_section(position, status):
                     <div class="margin-fill" style="width: {min(status['margin_level']*100, 200)}%"></div>
                 </div>
                 <div class="margin-thresholds">
-                    <span>Liquidation: {position['liquidation_margin']*100:.0f}%</span>
-                    <span>Maintenance: {position['maintenance_margin']*100:.0f}%</span>
+                    <span>Liquidation: {status['liquidation_margin']*100:.0f}%</span>
+                    <span>Maintenance: {status['maintenance_margin']*100:.0f}%</span>
                     <span>Current: {status['margin_level']*100:.1f}%</span>
                 </div>
             </div>
@@ -128,7 +131,7 @@ def generate_position_html_section(position, status):
         <div class="position-details">
             <div class="detail-row">
                 <span>Entry Value:</span>
-                <span>฿{position['entry_value']:,.2f}</span>
+                <span>฿{position['shares'] * position['entry_price']:,.2f}</span>
             </div>
             <div class="detail-row">
                 <span>Current Value:</span>
@@ -145,26 +148,26 @@ def generate_position_html_section(position, status):
         </div>
         
         <div class="house-message">
-            <strong>🏦 The House:</strong> {get_house_message(status['margin_level'], position)}
+            <strong>🏦 The House:</strong> {get_house_message(status['margin_level'], status)}
         </div>
         
         <div class="livermore-quote">
-            <em>"{get_livermore_quote(status['net_pnl'], position['entry_value'])}"</em>
+            <strong>💬 Jesse Livermore:</strong> {get_livermore_quote(status['net_pnl'], position['shares'] * position['entry_price'])}
         </div>
     </div>
     """
     
     return html
 
-def get_house_message(margin_level, position):
+def get_house_message(margin_level, status):
     """Get appropriate message from The House"""
-    if margin_level < position["liquidation_margin"]:
+    if margin_level < status["liquidation_margin"]:
         return "LIQUIDATING YOUR POSITION NOW. No exceptions."
-    elif margin_level < position["maintenance_margin"]:
+    elif margin_level < status["maintenance_margin"]:
         return "MARGIN CALL! Deposit funds NOW or we liquidate."
-    elif margin_level < position["maintenance_margin"] * 1.05:
+    elif margin_level < status["maintenance_margin"] * 1.05:
         return "One more tick against you and you're getting a margin call!"
-    elif margin_level < position["maintenance_margin"] * 1.1:
+    elif margin_level < status["maintenance_margin"] * 1.1:
         return "We're watching this position closely..."
     else:
         return "Position looks good. Keep monitoring it."

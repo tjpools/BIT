@@ -1,393 +1,278 @@
 #!/usr/bin/env python3
 """
 Jesse Livermore Trading Game
-Simulate short positions on BMNR with pseudo dollars
-"The game taught me the game. And it will never be finished."
+Simulate short selling with real-world mechanics
+Currency: Bytes (฿) where ฿1 = $1 USD equivalent
 """
 
 import json
 import os
-from datetime import datetime
-from fetch_and_generate import fetch_yahoo_finance
+from datetime import datetime, timedelta
+import urllib.request
 
 POSITION_FILE = "data/trading_position.json"
-
-def load_position():
-    """Load existing position or return None"""
-    if os.path.exists(POSITION_FILE):
-        with open(POSITION_FILE, 'r') as f:
-            return json.load(f)
-    return None
-
-def save_position(position):
-    """Save position to disk"""
-    os.makedirs("data", exist_ok=True)
-    with open(POSITION_FILE, 'w') as f:
-        json.dump(position, f, indent=2)
+BORROW_RATE = 0.08  # 8% annual hard-to-borrow fee
+COMMISSION_RATE = 0.005  # 0.5% per trade
+INITIAL_MARGIN = 1.50  # 150% required
+MAINTENANCE_MARGIN = 1.25  # 125% maintenance
+LIQUIDATION_THRESHOLD = 1.10  # 110% forced liquidation
 
 def get_current_price():
-    """Fetch current BMNR price"""
-    data = fetch_yahoo_finance("BMNR")
-    if data and "currentPrice" in data:
-        return data["currentPrice"]
-    return None
+    """Fetch current BMNR price from Yahoo Finance"""
+    try:
+        url = "https://query1.finance.yahoo.com/v8/finance/chart/BMNR?interval=1d"
+        headers = {'User-Agent': 'Mozilla/5.0 (compatible; BitMineTracker/1.0)'}
+        req = urllib.request.Request(url, headers=headers)
+        
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode())
+            quote = data['chart']['result'][0]['meta']
+            return float(quote.get('regularMarketPrice', 31.36))
+    except Exception as e:
+        print(f"⚠️  Price fetch failed: {e}")
+        print(f"⚠️  Using fallback price: ฿31.36")
+        return 31.36
 
-def calculate_pnl(position, current_price):
-    """Calculate P&L for short position"""
-    # Short P&L = (Entry Price - Current Price) × Shares
-    entry_price = position["entry_price"]
-    shares = position["shares"]
-    price_diff = entry_price - current_price
-    unrealized_pnl = price_diff * shares
-    pnl_percent = (price_diff / entry_price) * 100
-    return unrealized_pnl, pnl_percent
-
-def open_short_position(shares, starting_capital):
+def open_short_position(shares, capital):
     """Open a new short position"""
+    
+    if os.path.exists(POSITION_FILE):
+        print("❌ Position already exists! Close it first with: check_position() then close_position()")
+        return
+    
     current_price = get_current_price()
-    if not current_price:
-        print("❌ Unable to fetch current price")
-        return None
+    position_value = shares * current_price
+    required_margin = position_value * INITIAL_MARGIN
+    commission = position_value * COMMISSION_RATE
     
-    entry_value = shares * current_price
+    print("\n" + "="*70)
+    print("🎯 OPENING SHORT POSITION")
+    print("="*70)
+    print(f"\nCurrent BMNR Price: ฿{current_price:.2f}")
+    print(f"\nShares to Short: {shares:,}")
+    print(f"Position Value: ฿{position_value:,.2f}")
+    print(f"Required Margin (150%): ฿{required_margin:,.2f}")
+    print(f"Commission (0.5%): ฿{commission:,.2f}")
+    print(f"\nTotal Capital Needed: ฿{required_margin + commission:,.2f}")
+    print(f"Your Capital: ฿{capital:,.2f}")
     
-    # House/Brokerage terms (per SEC Regulation T and real-world practices)
-    MARGIN_REQUIREMENT = 1.5  # 150% initial margin (SEC Reg T for shorts)
-    BORROW_FEE_ANNUAL = 0.08  # 8% annual borrow fee (hard-to-borrow stock)
-    MAINTENANCE_MARGIN = 1.25  # 125% maintenance margin (margin call trigger)
-    LIQUIDATION_MARGIN = 1.10  # 110% forced liquidation threshold
-    COMMISSION = 0.005  # 0.5% commission per trade (both open and close)
+    if capital < required_margin + commission:
+        print(f"\n❌ INSUFFICIENT CAPITAL")
+        print(f"Short: ฿{required_margin + commission - capital:,.2f}")
+        return
     
-    required_margin = entry_value * MARGIN_REQUIREMENT
-    commission_open = entry_value * COMMISSION
+    cash_after = capital - commission
+    equity = cash_after - position_value
+    margin_level = (equity / position_value) * 100
     
-    # Check if player has enough capital (margin + commission)
-    total_required = required_margin + commission_open
-    if starting_capital < total_required:
-        print("\n" + "="*70)
-        print("🏦 THE HOUSE (BROKERAGE) REJECTS YOUR TRADE")
-        print("="*70)
-        print(f"❌ Insufficient capital!")
-        print(f"📊 Position Value: ${entry_value:,.2f}")
-        print(f"📊 Required Margin (150%): ${required_margin:,.2f}")
-        print(f"💸 Commission (0.5%): ${commission_open:,.2f}")
-        print(f"📊 Total Required: ${total_required:,.2f}")
-        print(f"💰 Your Capital: ${starting_capital:,.2f}")
-        print(f"💸 Shortfall: ${total_required - starting_capital:,.2f}")
-        print("="*70)
-        print()
-        print("💡 The House: 'Can't let you borrow what you can't cover, pal.'")
-    # Deduct commission from capital
-    net_capital = starting_capital - commission_open
+    print(f"\nCash After Commission: ฿{cash_after:,.2f}")
+    print(f"Initial Equity: ฿{equity:,.2f}")
+    print(f"Initial Margin Level: {margin_level:.1f}%")
     
     position = {
-        "type": "short",
-        "symbol": "BMNR",
         "shares": shares,
         "entry_price": current_price,
-        "entry_value": entry_value,
-        "entry_time": datetime.now().isoformat(),
-        "starting_capital": starting_capital,
-        "net_capital": net_capital,
-        "margin_requirement": MARGIN_REQUIREMENT,
-        "maintenance_margin": MAINTENANCE_MARGIN,
-        "liquidation_margin": LIQUIDATION_MARGIN,
-        "borrow_fee_annual": BORROW_FEE_ANNUAL,
-        "commission_rate": COMMISSION,
-        "commission_paid": commission_open,
-        "accumulated_fees": 0,
-        "trade_history": [],
-        "margin_calls": 0,
-        "last_check": datetime.now().isoformat()": MARGIN_REQUIREMENT,
-        "maintenance_margin": MAINTENANCE_MARGIN,
-        "borrow_fee_annual": BORROW_FEE_ANNUAL,
-        "accumulated_fees": 0 (Per SEC Reg T & Industry Standards):")
-    print(f"   • Initial Margin: {MARGIN_REQUIREMENT*100:.0f}% (${required_margin:,.2f})")
-    print(f"   • Maintenance Margin: {MAINTENANCE_MARGIN*100:.0f}% (margin call threshold)")
-    print(f"   • Liquidation Threshold: {LIQUIDATION_MARGIN*100:.0f}% (forced close)")
-    print(f"   • Borrow Fee: {BORROW_FEE_ANNUAL*100:.1f}% annually (~${entry_value * BORROW_FEE_ANNUAL / 365:.2f}/day)")
-    print(f"   • Commission: {COMMISSION*100:.2f}% per trade")
-    print()
-    print("💰 ACCOUNT BREAKDOWN:")
-    print(f"   Starting Capital:        ${starting_capital:,.2f}")
-    print(f"   Commission (paid now):   -${commission_open:,.2f}")
-    print(f"   Net Capital:             ${net_capital:,.2f}")
-    print(f"   Margin Posted:           ${required_margin:,.2f}")
-    print(f"   Free Cash:               ${net_capital - required_margin:,.2f}")
-    print()
-    print(f"⏰ Entry Time: {position['entry_time']}")
-    print("="*70)
-    print()
-    print("💡 Jesse Livermore: 'It was never my thinking that made the big money")
-    print("   for me. It always was my sitting.'")
-    print()
-    print("⚠️  The House: 'Remember - we can recall these shares anytime.")
-    print("    If margin drops below {LIQUIDATION_MARGIN*100:.0f}%, we liquidate WITHOUT NOTICE!")
-    print("    Keep checking your position. Good luck0f}% (margin call threshold)")
-    print(f"   • Borrow Fee: {BORROW_FEE_ANNUAL*100:.1f}% annually (~{BORROW_FEE_ANNUAL*100/365:.3f}%/day)")
-    print()
-    print(f"🏦 Your Capital: ${starting_capital:,.2f}")
-    print(f"🔒 Margin Posted: ${required_margin:,.2f}")
-    print(f"💵 Buying Power Remaining: ${starting_capital - required_margin:,.2f}")
-    print(f"⏰ Entry Time: {position['entry_time']}")
-    print("="*70)
-    print()
-    print("💡 Jesse Livermore: 'It was never my thinking that made the big money")
-    print("   for me. It always was my sitting.'")
-    print()
-    print("⚠️  The House: 'Remember, we can recall these shares anytime.")
-    print("    Keep that margin healthy or we'll close you out!'")
-    print()
+        "entry_date": datetime.now().isoformat(),
+        "initial_capital": capital,
+        "cash": cash_after,
+        "open_commission": commission,
+        "borrow_rate": BORROW_RATE,
+        "status": "OPEN"
+    }
     
-    return position
+    os.makedirs('data', exist_ok=True)
+    with open(POSITION_FILE, 'w') as f:
+        json.dump(position, f, indent=2)
+    
+    print("\n" + "="*70)
+    print("✅ POSITION OPENED")
+    print("="*70)
+    print("\n📊 The glyph now controls your fate.")
+    print("💡 Check status anytime: check_position()")
+    print("💡 Close when ready: close_position()")
+    print("\n🏦 The House says: \"Good luck. You'll need it.\"")
+    print(f"\n📈 Dashboard updating at: https://tjpools.github.io/BIT/")
+    print("="*70 + "\n")
 
 def check_position():
     """Check current position status"""
-    position = load_position(), accrues daily)
-    from datetime import datetime
-    entry_dt = datetime.fromisoformat(position["entry_time"])
-    now_dt = datetime.now()
-    days_elapsed = (now_dt - entry_dt).total_seconds() / 86400
-    daily_fee_rate = position["borrow_fee_annual"] / 365
-    total_borrow_fees = entry_value * daily_fee_rate * days_elapsed
     
-    # Total costs
-    total_fees = position["commission_paid"] + total_borrow_fees
+    if not os.path.exists(POSITION_FILE):
+        print("\n❌ No active position")
+        print("💡 Open one with: open_short_position(shares, capital)")
+        return None
     
-    # Net P&L after all fees
-    net_pnl = unrealized_pnl - total_fees
+    with open(POSITION_FILE, 'r') as f:
+        position = json.load(f)
     
-    # Calculate margin level (Critical for margin calls)
-    # Equity = Net Capital + Unrealized P&L - Borrow Fees
-    equity = position["net_capital"] + unrealized_pnl - total_borrow_fees
-    margin_level = equity / current_value
-    maintenance_margin = position["maintenance_margin"]
-    liquidation_margin = position["liquidation_margin"]
+    current_price = get_current_price()
+    entry_price = position['entry_price']
+    shares = position['shares']
+    cash = position['cash']
+    entry_date = datetime.fromisoformat(position['entry_date'])
+    days_held = (datetime.now() - entry_date).total_seconds() / 86400
     
-    # Check for forced liquidation
-    if margin_level < liquidation_margin:
-        print("\n" + "🚨"*35)
-        print("   💥 FORCED LIQUIDATION BY THE HOUSE 💥")
-        print("🚨"*35)
-        print()
-        print("⚠️  Your margin level dropped below liquidation threshold!")
-        print(f"   Liquidation Threshold: {liquidation_margin*100:.0f}%")
-        print(f"   Your Margin Level: {margin_level*100:.1f}%")
-        print()
-        print("🏦 The House: 'We warned you. Liquidating your position NOW.'")
-        print("   'No exceptions. Risk management is non-negotiable.'")
-        print()
-        
-        # Force close the position
-        close_position_forced()
-        return
-    from datetime import datetime
-    entry_dt = datetime.fromisoformat(position["entry_time"])
-    now_dt = datetime.now()
-    days_elapsed = (now_dt - entry_dt).total_seconds() / 86400
-    daily_fee_rate = position["borrow_fee_annual"] / 365
-    new_fees = entry_value * daily_fee_rate * days_elapsed
-    total_fees = position["accumulated_fees"] + new_fees
+    # Calculate P&L
+    position_value_entry = shares * entry_price
+    position_value_current = shares * current_price
+    price_pnl = position_value_entry - position_value_current
     
-    # Net P&L after fees
-    net_pnl = unrealized_pnl - total_fees
+    # Calculate fees
+    daily_borrow_fee = (position_value_entry * BORROW_RATE) / 365
+    total_borrow_fees = daily_borrow_fee * days_held
     
-    # Calculate margin level
-    # Equity = Starting Capital + Unrealized P&L - Fees
-    equity = position["starting_capital"] + unrealized_pnl - total_fees
-    margin_level = equity / current_value
-    maintenance_margin = position["maintenance_margin"]
-    
-    # Track price history
-    position["trade_history"].append({
-        "timestamp": datetime.now().isoformat(),
-        "price": current_price,
-        "unrealized_pnl": unrealized_pnl,
-        "pnl_percent": pnl_percent,
-        "total_fees": total_fees,
-        "margin_level": margin_level
-    })
-    position["accumulated_fees"] = total_fees
-    save_position(position)
-    
-    # Display status
-    print("\n" + "="*70)
-    print("📊 JESSE LIVERMORE GAME - POSITION STATUS")
-    print("="*70)
-    print(f"🎯 Position: SHORT {shares:,} shares BMNR")
-    print(f"📍 Entry Price: ${entry_price:.2f}")
-    print(f"📍 Current Price: ${current_price:.2f}")
-    print(f"📊 Price Change: ${current_price - entry_price:.2f} ({(current_price/entry_price - 1)*100:+.2f}%)")
-    print("─"*70)
-    print(f"💵 Entry Value: ${entry_value:,.2f}")
-    print(f"💵 Current Value: ${current_value:,.2f}")
-    print("─"*70)
-    
-    # P&L display with color indication
-    if net_pnl >= 0:
-        pnl_symbol = "✅"
-        sentiment = "PROFIT"
-    else:
-        pnl_symbol = "⚠️"
-        sentiment = "LOSS"
-    
-    print(f"💰 Unrealized P&L: ${unrealized_pnl:+,.2f} ({pnl_percent:+.2f}%)")
-    print(f"🏦 Borrow Fees ({days_elapsed:.2f} days): -${total_fees:,.2f}")
-    print(f"{pnl_symbol} Net P&L: ${net_pnl:+,.2f}")
-    print(f"📈 Status: {sentiment}")
-    print(f"💼 Account Equity: ${equity:,.2f}")
-    print("─"*70)
-    print(f"📊 MARGIN STATUS:")
-    print(f"   Current Margin Level: {margin_level*100:.1f}%")
-    
-    # Calculate final fees
-    from datetime import datetime
-    entry_dt = datetime.fromisoformat(position["entry_time"])
-    now_dt = datetime.now()
-    days_elapsed = (now_dt - entry_dt).total_seconds() / 86400
-    daily_fee_rate = position["borrow_fee_annual"] / 365
-    entry_value = position["entry_value"]
-    total_fees = entry_value * daily_fee_rate * days_elapsed
-    
-    # Net P&L after fees
-    net_pnl = unrealized_pnl - total_fees
-    final_capital = position["starting_capital"] + net_pnl
+    # Calculate equity and margin
+    total_pnl = price_pnl - total_borrow_fees - position['open_commission']
+    equity = cash + total_pnl
+    margin_level = (equity / position_value_current) * 100 if position_value_current > 0 else 0
     
     print("\n" + "="*70)
-    print("🏁 JESSE LIVERMORE GAME - POSITION CLOSED")
-    print("="*70)
-    print(f"📍 Entry Price: ${position['entry_price']:.2f}")
-    print(f"📍 Exit Price: ${current_price:.2f}")
-    print(f"🎯 Shares: {position['shares']:,}")
-    print(f"⏱️  Duration: {days_elapsed:.2f} days")
-    print("─"*70)
-    print(f"💰 Starting Capital: ${position['starting_capital']:,.2f}")
-    print(f"💵 Gross P&L: ${unrealized_pnl:+,.2f} ({pnl_percent:+.2f}%)")
-    print(f"🏦 Borrow Fees: -${total_fees:,.2f}")
-    print(f"💎 Net Realized P&L: ${net_pnl:+,.2f}")
-    print(f"🏦 Final Capital: ${final_capital:,.2f}")
-    print(f"📊 Total Return: {(net_pnl/position['starting_capital'])*100:+.2f}%")
+    print("📊 POSITION STATUS")
     print("="*70)
     
-    # The House takes its cut
-    print()
-    print(f"🏦 The House: 'Thanks for your business. We collected ${total_fees:.2f}")
-    print(f"   in borrow fees. Come back anytime!'")
+    print(f"\n🎲 Entry: ฿{entry_price:.2f} → Current: ฿{current_price:.2f}")
+    print(f"📅 Days Held: {days_held:.2f}")
+    print(f"📈 Shares Short: {shares:,}")
     
-    if net
-        print(f"   ✅ Margin healthy")
+    print(f"\n💰 PERFORMANCE:")
+    print(f"  Price P&L: ฿{price_pnl:,.2f}")
+    print(f"  Borrow Fees: -฿{total_borrow_fees:,.2f}")
+    print(f"  Entry Commission: -฿{position['open_commission']:,.2f}")
+    print(f"  {'─'*50}")
+    print(f"  Net P&L: ฿{total_pnl:,.2f} ({(total_pnl/position['initial_capital'])*100:+.2f}%)")
     
-    print("="*70)
+    print(f"\n🏦 MARGIN STATUS:")
+    print(f"  Cash: ฿{cash:,.2f}")
+    print(f"  Current Equity: ฿{equity:,.2f}")
+    print(f"  Position Value: ฿{position_value_current:,.2f}")
+    print(f"  Margin Level: {margin_level:.1f}%")
     
-    # Jesse Livermore wisdom based on position
-    if net_pnl > entry_value * 0.1:
-        print("\n💡 Livermore: 'There is a time to go long, a time to go short,")
-        print("   and a time to go fishing.' Consider your exit!")
-    elif net_pnl < -entry_value * 0.1:
-        print("\n💡 Livermore: 'The most important rule of trading is to play")
-        print("   great defense, not great offense.' Review your thesis!")
+    # Risk warnings
+    if margin_level < LIQUIDATION_THRESHOLD * 100:
+        print(f"\n🚨 LIQUIDATION - POSITION FORCE CLOSED AT ฿{current_price:.2f}")
+        close_position_forced(current_price, "LIQUIDATED")
+    elif margin_level < MAINTENANCE_MARGIN * 100:
+        print(f"\n⚠️  MARGIN CALL - Deposit more capital or close position!")
+        print(f"    Need margin > 125%, currently at {margin_level:.1f}%")
+    elif margin_level < 140:
+        print(f"\n⚠️  WARNING - Margin approaching maintenance level")
     else:
-        print("\n💡 Livermore: 'It was never my thinking that made the big money")
-        print("   for me. It always was my sitting.' Be patient!")
-    print()
+        print(f"\n✅ Margin healthy")
+    
+    print("\n" + "="*70 + "\n")
+    
+    return {
+        'current_price': current_price,
+        'margin_level': margin_level,
+        'total_pnl': total_pnl,
+        'equity': equity
+    }
 
 def close_position():
-    """Close the short position"""
-    position = load_position()
-    if not position:
-        print("\n❌ No active position to close!\n")
+    """Close position voluntarily"""
+    
+    if not os.path.exists(POSITION_FILE):
+        print("\n❌ No active position to close")
+        return
+    
+    with open(POSITION_FILE, 'r') as f:
+        position = json.load(f)
+    
+    if position['status'] == 'LIQUIDATED':
+        print("\n💀 Position already liquidated by The House")
         return
     
     current_price = get_current_price()
-    if not current_price:
-        print("❌ Unable to fetch current price")
+    shares = position['shares']
+    position_value = shares * current_price
+    close_commission = position_value * COMMISSION_RATE
+    
+    status = check_position()
+    if not status:
         return
     
-    unrealized_pnl, pnl_percent = calculate_pnl(position, current_price)
-    final_capital = position["starting_capital"] + unrealized_pnl
+    final_equity = status['equity'] - close_commission
+    total_return = ((final_equity - position['initial_capital']) / position['initial_capital']) * 100
     
     print("\n" + "="*70)
-    print("🏁 JESSE LIVERMORE GAME - POSITION CLOSED")
+    print("🔒 CLOSING POSITION")
     print("="*70)
-    print(f"📍 Entry Price: ${position['entry_price']:.2f}")
-    print(f"📍 Exit Price: ${current_price:.2f}")
-    print(f"🎯 Shares: {position['shares']:,}")
-    print("─"*70)
-    print(f"💰 Starting Capital: ${position['starting_capital']:,.2f}")
-    print(f"💵 Realized P&L: ${unrealized_pnl:+,.2f} ({pnl_percent:+.2f}%)")
-    print(f"🏦 Final Capital: ${final_capital:,.2f}")
-    print("="*70)
+    print(f"\nClosing Price: ฿{current_price:.2f}")
+    print(f"Closing Commission: ฿{close_commission:,.2f}")
+    print(f"Final Equity: ฿{final_equity:,.2f}")
+    print(f"Total Return: {total_return:+.2f}%")
     
-    if unrealized_pnl > 0:
-        print("\n🎉 Profitable Trade! Jesse would be proud.")
-        print("💡 'The big money was not in the individual fluctuations")
-        print("   but in the main movements.'")
-    else:
-        print("\n📚 Learning Experience.")
-        print("💡 'There is nothing new in Wall Street. There can't be")
-        print("   because speculation is as old as the hills.'")
+    position['status'] = 'CLOSED'
+    position['close_price'] = current_price
+    position['close_date'] = datetime.now().isoformat()
+    position['close_commission'] = close_commission
+    position['final_equity'] = final_equity
+    position['total_return'] = total_return
     
-    # Archive and clear
+    with open(POSITION_FILE, 'w') as f:
+        json.dump(position, f, indent=2)
+    
+    # Archive and remove active position
+    archive_file = f"data/closed_position_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    with open(archive_file, 'w') as f:
+        json.dump(position, f, indent=2)
+    
     os.remove(POSITION_FILE)
-    print("\n✅ Position closed and archived.\n")
+    
+    if total_return > 0:
+        print("\n✅ Profitable exit - well played")
+        print("💬 Livermore: \"Profits always take care of themselves but losses never do.\"")
+    else:
+        print("\n📉 Loss realized - the glyph won this round")
+        print("💬 Livermore: \"The market is never wrong. Opinions often are.\"")
+    
+    print(f"\n📁 Position archived: {archive_file}")
+    print("="*70 + "\n")
 
-def show_help():
-    """Display game instructions"""
+def close_position_forced(price, reason="LIQUIDATED"):
+    """Force close position (liquidation)"""
+    
+    with open(POSITION_FILE, 'r') as f:
+        position = json.load(f)
+    
+    shares = position['shares']
+    position_value = shares * price
+    close_commission = position_value * COMMISSION_RATE
+    
+    position['status'] = reason
+    position['close_price'] = price
+    position['close_date'] = datetime.now().isoformat()
+    position['close_commission'] = close_commission
+    
+    with open(POSITION_FILE, 'w') as f:
+        json.dump(position, f, indent=2)
+    
+    archive_file = f"data/liquidated_position_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    with open(archive_file, 'w') as f:
+        json.dump(position, f, indent=2)
+    
+    os.remove(POSITION_FILE)
+    
+    print("\n💀 THE HOUSE HAS SPOKEN")
+    print("💬 Livermore: \"Markets can remain irrational longer than you can remain solvent.\"")
+    print(f"📁 Position archived: {archive_file}")
+
+def show_menu():
+    """Display interactive menu"""
     print("\n" + "="*70)
-    print("🎮 JESSE LIVERMORE TRADING GAME")
+    print("🎰 JESSE LIVERMORE TRADING GAME")
     print("="*70)
-    print()
-    print("Commands:")
-    print("  python jesse_livermore_game.py open <shares> <capital>")
-    print("    Example: python jesse_livermore_game.py open 1000 10000")
-    print("    Opens a SHORT position of 1000 shares with $10,000 capital")
-    print()
-    print("  python jesse_livermore_game.py check")
-    print("    Check current position P&L")
-    print()
-    print("  python jesse_livermore_game.py close")
-    print("    Close position and realize P&L")
-    print()
-    print("SHORT POSITION MECHANICS:")
-    print("  • You borrow shares and sell them at current price")
-    print("  • Profit when price goes DOWN (buy back cheaper)")
-    print("  • Loss when price goes UP (buy back more expensive)")
-    print("  • P&L = (Entry Price - Current Price) × Shares")
-    print()
-    print("💡 Jesse Livermore (1877-1940):")
-    print("   Legendary trader who made and lost several fortunes.")
-    print("   Known for shorting before the 1929 crash ($100M profit).")
-    print("   'The game taught me the game. And it will never be finished.'")
-    print("="*70)
-    print()
+    print("\nAvailable commands:")
+    print("  1. open_short_position(shares, capital) - Open new short")
+    print("  2. check_position() - Check current status")
+    print("  3. close_position() - Close position")
+    print("  4. get_current_price() - Fetch current BMNR price")
+    print("\nExamples:")
+    print("  Conservative: open_short_position(1000, 50000)")
+    print("  Moderate:     open_short_position(2000, 100000)")
+    print("  Aggressive:   open_short_position(3000, 150000)")
+    print("\nCurrent BMNR: ฿{:.2f}".format(get_current_price()))
+    print("="*70 + "\n")
 
 if __name__ == "__main__":
-    import sys
-    
-    if len(sys.argv) < 2:
-        show_help()
-        sys.exit(0)
-    
-    command = sys.argv[1].lower()
-    
-    if command == "open":
-        if len(sys.argv) != 4:
-            print("❌ Usage: python jesse_livermore_game.py open <shares> <capital>")
-            sys.exit(1)
-        shares = int(sys.argv[2])
-        capital = float(sys.argv[3])
-        open_short_position(shares, capital)
-    
-    elif command == "check":
-        check_position()
-    
-    elif command == "close":
-        close_position()
-    
-    elif command == "help":
-        show_help()
-    
-    else:
-        print(f"❌ Unknown command: {command}")
-        show_help()
-        sys.exit(1)
+    show_menu()
