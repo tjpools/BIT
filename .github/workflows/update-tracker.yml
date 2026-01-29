@@ -115,14 +115,20 @@ jobs:
         if-no-files-found: warn
     
     # Email notification on workflow failure
-    # NOTE: Requires repository secrets to be configured:
+    # NOTE: This step is OPTIONAL and will fail silently if not configured.
+    # To enable email notifications, configure these repository secrets:
     #   - MAIL_USERNAME: Email account username (e.g., your-email@gmail.com)
     #   - MAIL_PASSWORD: Email account password or app-specific password
     # For Gmail, you'll need to create an app-specific password:
     #   https://support.google.com/accounts/answer/185833
+    # 
+    # If using a different email provider, you may need to adjust:
+    #   - server_address (currently set for Gmail: smtp.gmail.com)
+    #   - server_port (currently set for Gmail: 587)
     - name: Send failure notification email
       if: failure()
-      uses: dawidd6/action-send-mail@v3
+      continue-on-error: true  # Don't mask original failure if email fails
+      uses: dawidd6/action-send-mail@4226df7daafa6fc901a43789c49bf7ab309066e7  # v3
       with:
         server_address: smtp.gmail.com
         server_port: 587
