@@ -136,7 +136,7 @@ jobs:
         password: ${{ secrets.MAIL_PASSWORD }}
         subject: 'BMNR Tracker Workflow Failed - Run #${{ github.run_number }}'
         to: ${{ secrets.MAIL_USERNAME }}
-        from: GitHub Actions <noreply@github.com>
+        from: ${{ secrets.MAIL_USERNAME }}
         body: |
           The BMNR Tracker workflow has failed.
           
