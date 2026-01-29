@@ -1,9 +1,11 @@
 name: Update BMNR Tracker
 
 on:
-  schedule:
-    # Run every hour
-    - cron: '0 * * * *'
+  # DISABLED: Cron schedule causing too many failures
+  # Uncomment when the underlying issues are resolved
+  # schedule:
+  #   # Run every hour
+  #   - cron: '0 * * * *'
   workflow_dispatch:  # Allow manual trigger
   push:
     branches: [ main ]
@@ -111,3 +113,39 @@ jobs:
         path: logs/
         retention-days: 7  # Security: Limit retention
         if-no-files-found: warn
+    
+    # Email notification on workflow failure
+    # NOTE: Requires repository secrets to be configured:
+    #   - MAIL_USERNAME: Email account username (e.g., your-email@gmail.com)
+    #   - MAIL_PASSWORD: Email account password or app-specific password
+    # For Gmail, you'll need to create an app-specific password:
+    #   https://support.google.com/accounts/answer/185833
+    - name: Send failure notification email
+      if: failure()
+      uses: dawidd6/action-send-mail@v3
+      with:
+        server_address: smtp.gmail.com
+        server_port: 587
+        username: ${{ secrets.MAIL_USERNAME }}
+        password: ${{ secrets.MAIL_PASSWORD }}
+        subject: 'BMNR Tracker Workflow Failed - Run #${{ github.run_number }}'
+        to: ${{ secrets.MAIL_USERNAME }}
+        from: GitHub Actions <noreply@github.com>
+        body: |
+          The BMNR Tracker workflow has failed.
+          
+          Repository: ${{ github.repository }}
+          Workflow: ${{ github.workflow }}
+          Run ID: ${{ github.run_id }}
+          Run Number: ${{ github.run_number }}
+          Run URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          
+          Triggered by: ${{ github.event_name }}
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+          Actor: ${{ github.actor }}
+          
+          Please check the logs for more details:
+          ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          
+          This is an automated message from GitHub Actions.
